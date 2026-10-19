@@ -171,3 +171,124 @@
 .btn-secondary { color: rgb(30 41 59 / 0.9) !important; }
 .btn-ghost { color: rgb(71 85 105 / 0.82) !important; }
 .btn-ghost:hover { color: rgb(15 23 42) !important; }
+
+/* Ant Design-inspired office theme */
+body {
+  background: #f5f7fa;
+}
+
+.mesh-bg {
+  background: #f5f7fa !important;
+  animation: none;
+}
+
+.glass,
+.glass-strong,
+.glass-card,
+.glass-sidebar {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+.btn-primary {
+  background: #1677ff !important;
+  border: 1px solid #1677ff;
+  box-shadow: none !important;
+}
+
+.btn-primary:hover {
+  background: #4096ff !important;
+  transform: none;
+}
+
+.btn-secondary {
+  background: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #1f2937 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+.btn-secondary:hover {
+  background: #f0f7ff !important;
+  border-color: #91caff !important;
+}
+
+.nav-item-active {
+  background: #e6f4ff !important;
+  border-color: #91caff !important;
+  color: #0958d9 !important;
+  box-shadow: none !important;
+}
+
+.nav-item-inactive {
+  border-color: transparent !important;
+}
+
+.input-field,
+.select-field {
+  background: #ffffff !important;
+  border-color: #d9d9d9 !important;
+  color: #1f2937 !important;
+}
+
+.input-field:focus,
+.select-field:focus {
+  border-color: #1677ff !important;
+  box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.14) !important;
+}
+
+.progress-fill {
+  background: #1677ff !important;
+}
+
+[class*="bg-gradient-to"] {
+  background-image: none !important;
+}
+
+[class*="from-fuchsia"],
+[class*="from-violet"],
+[class*="from-pink"],
+[class*="from-cyan"],
+[class*="from-orange"] {
+  background-color: #e6f4ff !important;
+}
+
+[class*="bg-fuchsia"],
+[class*="bg-violet"],
+[class*="bg-pink"],
+[class*="bg-cyan"] {
+  background-color: #e6f4ff !important;
+}
+
+[class*="text-fuchsia"],
+[class*="text-violet"],
+[class*="text-cyan"] {
+  color: #1677ff !important;
+}
+
+[class*="text-pink"],
+[class*="text-orange"] {
+  color: #1677ff !important;
+}
+
+[class*="border-fuchsia"],
+[class*="border-violet"],
+[class*="border-cyan"] {
+  border-color: #91caff !important;
+}
+
+[class*="border-pink"],
+[class*="border-orange"] {
+  border-color: #91caff !important;
+}
+
+[class*="shadow-glow"] {
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.14) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b7c9e2;
+}

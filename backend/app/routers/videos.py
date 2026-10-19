@@ -50,10 +50,10 @@ def list_models():
             {"id": "keyframes", "name": "关键帧动画"},
         ],
         "frame_presets": [
-            {"label": "约 3 秒", "num_frames": 81, "frame_rate": 24},
-            {"label": "约 5 秒", "num_frames": 121, "frame_rate": 24},
-            {"label": "约 10 秒", "num_frames": 241, "frame_rate": 24},
-            {"label": "约 18 秒", "num_frames": 441, "frame_rate": 24},
+            {"label": "约 3 秒", "seconds": 3},
+            {"label": "约 5 秒", "seconds": 5},
+            {"label": "约 10 秒", "seconds": 10},
+            {"label": "约 18 秒", "seconds": 18},
         ],
         "resolution_presets": [
             {"id": "480p-h", "group": "landscape", "label": "854×480（16:9，480p）", "width": 854, "height": 480},

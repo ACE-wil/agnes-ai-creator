@@ -10,6 +10,7 @@ import TrashIcon from '../components/TrashIcon.vue'
 
 const { alert, confirm } = useDialog()
 const { hasActiveKey, keyStatusLoading, refreshKeyStatus, requireApiKey } = useApiKeyGuard()
+const VIDEO_DRAFT_KEY = 'agnes-video-generation-draft'
 
 const meta = ref({ modes: [], frame_presets: [], resolution_presets: [] })
 const form = ref({
@@ -20,10 +21,12 @@ const form = ref({
   width: 1280,
   height: 720,
   num_frames: 121,
-  frame_rate: 24,
+  frame_rate: 30,
   seed: null,
 })
+const selectedDurationSeconds = ref(5)
 const inputImages = ref([])
+const inputImageNames = ref([])
 const promptInput = ref(null)
 const fileInput = ref(null)
 const showMentionMenu = ref(false)
@@ -49,6 +52,32 @@ let pollTimer = null
 const selectedTask = computed(() =>
   history.value.find(t => t.id === selectedTaskId.value) || null
 )
+
+function restoreDraft() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VIDEO_DRAFT_KEY) || 'null')
+    if (!saved || typeof saved !== 'object') return
+    form.value = { ...form.value, ...saved }
+    selectedDurationSeconds.value = saved.durationSeconds || selectedDurationSeconds.value
+    syncFrameCount()
+  } catch {}
+}
+
+watch(form, (value) => {
+  try {
+    localStorage.setItem(VIDEO_DRAFT_KEY, JSON.stringify({
+      model: value.model,
+      mode: value.mode,
+      prompt: value.prompt,
+      negative_prompt: value.negative_prompt,
+      width: value.width,
+      height: value.height,
+      frame_rate: value.frame_rate,
+      seed: value.seed,
+      durationSeconds: selectedDurationSeconds.value,
+    }))
+  } catch {}
+}, { deep: true })
 
 const activeTasks = computed(() =>
   history.value.filter(t => ['queued', 'in_progress', 'submitting'].includes(t.status))
@@ -115,7 +144,9 @@ async function addImageFiles(files) {
     if (form.value.mode === 'text2video') form.value.mode = 'img2video'
     for (const file of imageFiles) {
       inputImages.value.push(await fileToDataUrl(file))
+      inputImageNames.value.push(file.name || `图片${inputImageNames.value.length + 1}`)
     }
+    syncModeToImages()
   } catch (err) {
     error.value = err.message
     await alert({ title: '上传失败', message: err.message, confirmVariant: 'danger' })
@@ -139,17 +170,20 @@ function handlePromptPaste(e) {
 function handlePromptInput() {
   const el = promptInput.value
   const position = el?.selectionStart ?? form.value.prompt.length
-  showMentionMenu.value = /(?:^|\s)@[^\s@]*$/.test(form.value.prompt.slice(0, position)) && inputImages.value.length > 0
+  const before = form.value.prompt.slice(0, position)
+  const atPosition = before.lastIndexOf('@')
+  const mentionText = atPosition === -1 ? '' : before.slice(atPosition + 1)
+  showMentionMenu.value = atPosition !== -1 && !/\s/.test(mentionText)
 }
 
 function insertImageMention(index) {
   const el = promptInput.value
   const position = el?.selectionStart ?? form.value.prompt.length
   const before = form.value.prompt.slice(0, position)
-  const match = before.match(/(?:^|\s)@[^\s@]*$/)
-  if (!match) return
-  const tokenStart = match.index + (match[0].startsWith(' ') ? 1 : 0)
-  const mention = `@图片${index + 1} `
+  const tokenStart = before.lastIndexOf('@')
+  if (tokenStart === -1 || /\s/.test(before.slice(tokenStart + 1))) return
+  const name = inputImageNames.value[index] || `图片${index + 1}`
+  const mention = `@${name.replace(/\s+/g, '_')} `
   form.value.prompt = `${before.slice(0, tokenStart)}${mention}${form.value.prompt.slice(position)}`
   showMentionMenu.value = false
   nextTick(() => {
@@ -170,7 +204,20 @@ function fileToDataUrl(file) {
 
 function removeImage(i) {
   inputImages.value.splice(i, 1)
+  inputImageNames.value.splice(i, 1)
+  syncModeToImages()
   showMentionMenu.value = false
+}
+
+function syncModeToImages() {
+  if (form.value.mode === 'keyframes') return
+  if (inputImages.value.length >= 2) {
+    form.value.mode = 'multi_img'
+  } else if (inputImages.value.length === 1) {
+    form.value.mode = 'img2video'
+  } else {
+    form.value.mode = 'text2video'
+  }
 }
 
 function selectMode(modeId) {
@@ -178,8 +225,20 @@ function selectMode(modeId) {
 }
 
 function applyPreset(preset) {
-  form.value.num_frames = preset.num_frames
-  form.value.frame_rate = preset.frame_rate
+  selectedDurationSeconds.value = durationSecondsForPreset(preset)
+  syncFrameCount()
+}
+
+function durationSecondsForPreset(preset) {
+  return Number(preset.seconds) || Number(preset.label.match(/\d+/)?.[0]) || 5
+}
+
+function isDurationSelected(preset) {
+  return selectedDurationSeconds.value === durationSecondsForPreset(preset)
+}
+
+function syncFrameCount() {
+  form.value.num_frames = Math.max(1, Math.round(selectedDurationSeconds.value * form.value.frame_rate) + 1)
 }
 
 function taskErrorMessage(task) {
@@ -221,6 +280,7 @@ function stopPolling() {
 }
 
 async function generate() {
+  syncModeToImages()
   if (!form.value.prompt.trim()) {
     error.value = '请输入提示词'
     return
@@ -500,15 +560,19 @@ function fillFormFromTask(task) {
     width: task.width ?? 1280,
     height: task.height ?? 720,
     num_frames: task.num_frames ?? 121,
-    frame_rate: task.frame_rate ?? 24,
+    frame_rate: task.frame_rate ?? 30,
     seed: task.seed ?? null,
   }
+  selectedDurationSeconds.value = Math.max(1, Math.round((task.num_frames || 151) / (task.frame_rate || 30)))
+  syncFrameCount()
   inputImages.value = [...inputImagesOf(task)]
+  inputImageNames.value = inputImages.value.map((_, i) => `图片${i + 1}`)
   error.value = ''
   formCardRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 onMounted(async () => {
+  restoreDraft()
   await refreshKeyStatus()
   await loadMeta()
   await nextTick()
@@ -679,7 +743,7 @@ onUnmounted(() => {
               <div>
                 <label class="text-sm text-white/60 mb-2 block font-medium">提示词</label>
                 <div
-                  class="relative rounded-3xl border border-white/30 bg-slate-950/90 p-3 shadow-inner shadow-black/30 transition-colors focus-within:border-cyan-300/75 focus-within:shadow-cyan-400/10"
+                  class="relative rounded-3xl border border-slate-200 bg-white p-3 shadow-lg shadow-black/10 transition-colors focus-within:border-cyan-500 focus-within:shadow-cyan-500/15"
                   @dragover.prevent
                   @drop.prevent="handlePromptDrop"
                 >
@@ -687,10 +751,13 @@ onUnmounted(() => {
                     <div
                       v-for="(url, i) in inputImages"
                       :key="`${url.slice(0, 24)}-${i}`"
-                      class="relative group"
+                      class="relative group w-20"
                     >
-                      <img :src="url" :alt="`参考图 ${i + 1}`" class="w-14 h-14 object-cover rounded-xl border border-white/20" />
-                      <span class="absolute left-1 bottom-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] text-white/90">图片{{ i + 1 }}</span>
+                      <img :src="url" :alt="`参考图 ${i + 1}`" class="w-20 h-20 object-cover rounded-xl border border-slate-200" />
+                      <span
+                        class="mt-1 block truncate rounded-md bg-slate-100 px-1 py-0.5 text-center text-[11px] text-slate-800"
+                        :title="inputImageNames[i] || `图片${i + 1}`"
+                      >{{ inputImageNames[i] || `图片${i + 1}` }}</span>
                       <button
                         type="button"
                         @click="removeImage(i)"
@@ -701,42 +768,48 @@ onUnmounted(() => {
                   <textarea
                     ref="promptInput"
                     v-model="form.prompt"
-                    rows="4"
-                    class="w-full resize-none bg-transparent text-sm leading-6 text-white placeholder:text-white/60 outline-none"
+                    rows="6"
+                    class="min-h-[180px] w-full resize-y bg-transparent text-sm leading-6 text-slate-900 placeholder:text-slate-500 outline-none"
                     placeholder="上传参考素材、输入文字，自由组合图、文、视频多元素，定义精彩互动。例如：@图片1 转为视频的动作"
                     @input="handlePromptInput"
+                    @click="handlePromptInput"
+                    @focus="handlePromptInput"
                     @paste="handlePromptPaste"
                     @keydown.esc="showMentionMenu = false"
                   ></textarea>
                   <div
                     v-if="showMentionMenu && inputImages.length"
-                    class="absolute left-3 bottom-16 z-20 min-w-40 rounded-2xl border border-white/25 bg-slate-950 p-2 shadow-2xl backdrop-blur"
+                    class="absolute left-3 bottom-16 z-20 min-w-40 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl"
                   >
-                    <p class="px-2 py-1 text-[11px] text-white/65">插入参考图</p>
-                    <button
-                      v-for="(url, i) in inputImages"
-                      :key="`mention-${i}`"
-                      type="button"
-                      class="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs text-white/90 hover:bg-white/15"
-                      @mousedown.prevent
-                      @click="insertImageMention(i)"
-                    >
-                      <img :src="url" class="h-7 w-7 rounded-lg object-cover" />
-                      <span>@图片{{ i + 1 }}</span>
-                    </button>
+                    <p class="px-2 py-1 text-[11px] text-slate-500">
+                      {{ inputImages.length ? '插入参考图' : '请先添加参考图' }}
+                    </p>
+                    <template v-if="inputImages.length">
+                      <button
+                        v-for="(url, i) in inputImages"
+                        :key="`mention-${i}`"
+                        type="button"
+                        class="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs text-slate-800 hover:bg-slate-100"
+                        @mousedown.prevent
+                        @click.stop="insertImageMention(i)"
+                      >
+                        <img :src="url" class="h-7 w-7 rounded-lg object-cover" />
+                        <span class="truncate">@{{ inputImageNames[i] || `图片${i + 1}` }}</span>
+                      </button>
+                    </template>
                   </div>
-                  <div class="mt-2 flex items-center justify-between gap-3 border-t border-white/20 pt-2">
-                    <div class="flex items-center gap-2 text-xs text-white/65">
+                  <div class="mt-2 flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+                    <div class="flex items-center gap-2 text-xs text-slate-600">
                       <button
                         type="button"
-                        class="flex h-8 w-8 items-center justify-center rounded-full border border-white/35 text-lg text-white transition hover:border-cyan-300/75 hover:bg-cyan-300/10 hover:text-cyan-100"
+                        class="flex h-8 w-8 items-center justify-center rounded-full border border-slate-300 text-lg text-slate-800 transition hover:border-cyan-500 hover:bg-cyan-50 hover:text-cyan-700"
                         title="添加参考图"
                         @click="fileInput?.click()"
                       >+</button>
                       <span>{{ uploading ? '正在读取图片...' : '拖动或粘贴图片即可添加' }}</span>
                       <span v-if="inputImages.length">· {{ inputImages.length }} 张参考图</span>
                     </div>
-                    <span class="text-[11px] text-white/55">输入 @ 可引用图片</span>
+                    <span class="text-[11px] text-slate-500">输入 @ 可引用图片</span>
                   </div>
                   <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="handleUpload" />
                 </div>
@@ -767,23 +840,18 @@ onUnmounted(() => {
                     v-for="p in meta.frame_presets"
                     :key="p.label"
                     @click="applyPreset(p)"
-                    class="px-4 py-1.5 rounded-full text-xs border transition-all duration-200"
-                    :class="form.num_frames === p.num_frames
-                      ? 'border-fuchsia-300 bg-fuchsia-600/80 text-white shadow-[0_0_16px_rgba(217,70,239,0.3)]'
-                      : 'border-white/20 text-white/70 hover:border-white/40 hover:text-white'"
+                    class="px-4 py-1.5 rounded-full border bg-white text-slate-900 text-xs transition-all duration-200"
+                    :class="isDurationSelected(p)
+                      ? 'border-[#1677ff] bg-[#e6f4ff] font-semibold text-[#0958d9] shadow-[0_0_0_2px_rgba(22,119,255,0.12)]'
+                      : 'border-slate-200 bg-white text-slate-900 hover:border-[#91caff] hover:bg-[#f0f7ff]'"
                   >{{ p.label }}</button>
                 </div>
               </div>
 
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="text-sm text-white/60 mb-2 block">帧数</label>
-                  <input v-model.number="form.num_frames" type="number" class="input-field text-sm" />
-                </div>
-                <div>
-                  <label class="text-sm text-white/60 mb-2 block">帧率</label>
-                  <input v-model.number="form.frame_rate" type="number" class="input-field text-sm" />
-                </div>
+              <div>
+                <label class="text-sm text-white/60 mb-2 block">帧率</label>
+                <input v-model.number="form.frame_rate" @input="syncFrameCount" type="number" min="1" class="input-field text-sm" />
+                <p class="text-xs text-white/40 mt-1.5">帧数将根据时长和帧率自动计算：{{ form.num_frames }} 帧</p>
               </div>
 
               <div>
