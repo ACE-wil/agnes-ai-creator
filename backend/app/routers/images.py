@@ -1,11 +1,13 @@
 import json
 import base64
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 from app.database import get_db, row_to_dict
 from app.schemas import ImageGenerateRequest
 from app.services.agnes_client import agnes_client
 from app.services.error_utils import is_transient_http_error
-from app.services.qiniu_service import upload_bytes, upload_from_url
+from app.services.local_storage import image_data_url, save_image, save_image_from_url
 
 router = APIRouter(prefix="/api/images", tags=["images"])
 
@@ -15,7 +17,8 @@ async def _upload_input_file(file: UploadFile) -> dict:
     ext = (file.filename or "image.png").rsplit(".", 1)[-1].lower()
     if ext not in ("png", "jpg", "jpeg", "webp", "gif"):
         ext = "png"
-    uploaded = upload_bytes(content, "img", ext)
+    uploaded = save_image(content, ext)
+    uploaded["data_url"] = image_data_url(content, ext)
     with get_db() as conn:
         conn.execute(
             """INSERT INTO uploads (filename, original_name, qiniu_key, qiniu_url, file_type, size_bytes)
@@ -30,20 +33,21 @@ async def _complete_image_task(task_id: int, result: dict) -> dict:
     output_url = item.get("url")
     b64 = item.get("b64_json")
     revised = item.get("revised_prompt")
-    qiniu_url = None
+    local_url = None
 
     if output_url:
         try:
-            uploaded = upload_from_url(output_url, "img")
-            qiniu_url = uploaded["url"]
+            uploaded = save_image_from_url(output_url)
+            local_url = uploaded["url"]
+            output_url = local_url
         except Exception:
             pass
     elif b64:
         try:
             data = base64.b64decode(b64)
-            uploaded = upload_bytes(data, "img", "png")
-            qiniu_url = uploaded["url"]
-            output_url = qiniu_url
+            uploaded = save_image(data, "png")
+            local_url = uploaded["url"]
+            output_url = local_url
         except Exception:
             pass
 
@@ -51,13 +55,13 @@ async def _complete_image_task(task_id: int, result: dict) -> dict:
         conn.execute(
             """UPDATE image_tasks SET status='completed', output_url=?, qiniu_url=?, revised_prompt=?,
                duration_ms=?, error_message=NULL, completed_at=datetime('now','localtime') WHERE id=?""",
-            (output_url, qiniu_url, revised, result.get("duration_ms", 0), task_id),
+            (output_url, local_url, revised, result.get("duration_ms", 0), task_id),
         )
         row = conn.execute("SELECT * FROM image_tasks WHERE id = ?", (task_id,)).fetchone()
     return row_to_dict(row)
 
 
-async def _run_image_generate(body: ImageGenerateRequest, task_id: int | None = None):
+async def _run_image_generate(body: ImageGenerateRequest, task_id: Optional[int] = None):
     payload = {
         "model": body.model,
         "prompt": body.prompt,
@@ -172,7 +176,7 @@ async def generate_image(request: Request):
             raise HTTPException(400, "单图编辑模式仅支持一张参考图片")
         image_urls = []
         for file in files:
-            image_urls.append((await _upload_input_file(file))["url"])
+            image_urls.append((await _upload_input_file(file))["data_url"])
         body = ImageGenerateRequest(
             model=form.get("model") or "agnes-image-2.1-flash",
             prompt=form.get("prompt") or "",

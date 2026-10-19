@@ -24,7 +24,7 @@ const navItems = [
             A
           </div>
           <div>
-            <h1 class="font-extrabold text-lg leading-tight bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">
+          <h1 class="font-extrabold text-lg leading-tight text-slate-800">
               Agnes AI Creator
             </h1>
             <p class="text-xs text-white/50 mt-0.5">多模态 Web 客户端</p>

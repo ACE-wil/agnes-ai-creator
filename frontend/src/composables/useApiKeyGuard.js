@@ -12,7 +12,7 @@ export const NO_QINIU_MESSAGE =
   '尚未配置七牛云对象存储，无法上传参考图片。请在 backend/.env 中配置 QINIU_ACCESS_KEY、QINIU_SECRET_KEY、QINIU_BUCKET、QINIU_DOMAIN 后重启后端。详细说明请见「设置」页面。'
 
 export function imageModeNeedsQiniu(mode) {
-  return mode !== 'text2img'
+  return false
 }
 
 export function videoModeNeedsQiniu(mode) {

@@ -2,12 +2,14 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.database import init_db
 from app.config import validate_config
 from app.routers import chat, images, videos, settings
 from app.services.video_poller import poll_pending_videos
+from app.services.local_storage import MEDIA_DIR
 
 scheduler = BackgroundScheduler(job_defaults={"coalesce": True, "max_instances": 1})
 
@@ -31,6 +33,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Agnes AI Creator", lifespan=lifespan)
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
 
 app.add_middleware(
     CORSMiddleware,

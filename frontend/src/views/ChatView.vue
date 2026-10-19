@@ -511,7 +511,7 @@ watch(() => route.params.id, async (id) => {
           <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-fuchsia-500/30 to-cyan-400/30 flex items-center justify-center text-4xl mb-5 border border-white/20 animate-float">
             💬
           </div>
-          <p class="text-xl font-bold bg-gradient-to-r from-fuchsia-300 to-cyan-300 bg-clip-text text-transparent">开始与 Agnes AI 对话</p>
+          <p class="text-xl font-bold text-slate-800">开始与 Agnes AI 对话</p>
           <p class="text-sm mt-2 text-white/40">支持多轮对话、流式输出、Token 统计</p>
         </div>
 

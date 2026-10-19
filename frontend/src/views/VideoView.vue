@@ -596,7 +596,7 @@ onUnmounted(() => {
       <div class="flex-1 overflow-y-auto p-6">
         <div class="max-w-5xl mx-auto space-y-6">
           <div>
-            <h2 class="text-2xl font-extrabold bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-orange-300 bg-clip-text text-transparent">
+            <h2 class="text-2xl font-extrabold text-slate-800">
               视频生成
             </h2>
             <p class="text-white/50 text-sm mt-1">文生视频 · 图生视频 · 多图视频 · 关键帧动画</p>
@@ -606,9 +606,9 @@ onUnmounted(() => {
             v-if="!keyStatusLoading && !hasActiveKey"
             class="glass-card border border-amber-400/30 bg-amber-400/10 py-3 px-4"
           >
-            <p class="text-sm text-amber-100/90">
+            <p class="text-sm text-amber-900">
               尚未配置 Agnes AI API Key，无法生成视频。请前往
-              <router-link to="/settings" class="text-cyan-300 hover:underline">设置</router-link>
+              <router-link to="/settings" class="text-cyan-700 hover:underline">设置</router-link>
               添加并启用 Key。
             </p>
           </div>
@@ -617,9 +617,9 @@ onUnmounted(() => {
             v-if="!keyStatusLoading && !hasQiniuConfig"
             class="glass-card border border-sky-400/25 bg-sky-400/10 py-3 px-4"
           >
-            <p class="text-sm text-sky-100/90">
-              未配置七牛云对象存储：当前可使用<strong class="font-semibold text-white/90">文生视频</strong>；图生视频、多图视频、关键帧动画需上传参考图，暂不可用。生成结果使用 Agnes 临时链接，可能无法长期访问。
-              <router-link to="/settings#storage" class="text-cyan-300 hover:underline ml-1">查看配置说明</router-link>
+            <p class="text-sm text-sky-900">
+              未配置七牛云对象存储：当前可使用<strong class="font-semibold text-slate-900">文生视频</strong>；图生视频、多图视频、关键帧动画需上传参考图，暂不可用。生成结果使用 Agnes 临时链接，可能无法长期访问。
+              <router-link to="/settings#storage" class="text-cyan-700 hover:underline ml-1">查看配置说明</router-link>
             </p>
           </div>
 

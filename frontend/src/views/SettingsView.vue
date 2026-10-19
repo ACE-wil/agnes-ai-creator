@@ -153,7 +153,7 @@ onMounted(loadKeys)
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <header class="flex-shrink-0 px-8 py-6 border-b border-white/10">
-      <h2 class="text-2xl font-bold bg-gradient-to-r from-fuchsia-300 to-cyan-300 bg-clip-text text-transparent">
+      <h2 class="text-2xl font-bold text-slate-800">
         设置
       </h2>
       <p class="text-sm text-white/50 mt-1">管理 Agnes AI 连接配置与对象存储状态</p>

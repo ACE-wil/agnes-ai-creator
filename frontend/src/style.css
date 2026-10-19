@@ -4,7 +4,7 @@
 
 @layer base {
   body {
-    @apply antialiased text-white;
+    @apply antialiased text-slate-800;
   }
 }
 
@@ -103,11 +103,11 @@
 /* Animated mesh background */
 .mesh-bg {
   background:
-    radial-gradient(ellipse at 20% 20%, rgba(217, 70, 239, 0.35) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.3) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 80%, rgba(244, 114, 182, 0.25) 0%, transparent 50%),
-    radial-gradient(ellipse at 90% 70%, rgba(251, 146, 60, 0.2) 0%, transparent 40%),
-    linear-gradient(135deg, #0f0c29 0%, #1a0a2e 30%, #16213e 60%, #0f0c29 100%);
+    radial-gradient(ellipse at 20% 20%, rgba(217, 70, 239, 0.14) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(34, 211, 238, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(244, 114, 182, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 70%, rgba(251, 146, 60, 0.08) 0%, transparent 40%),
+    linear-gradient(135deg, #f8fafc 0%, #fdf4ff 35%, #eff6ff 68%, #f8fafc 100%);
   background-size: 200% 200%;
   animation: gradient-shift 15s ease infinite;
 }
@@ -124,3 +124,50 @@
   background: linear-gradient(180deg, rgba(217, 70, 239, 0.5), rgba(34, 211, 238, 0.5));
   border-radius: 999px;
 }
+
+/* Light theme overrides for the existing utility-based component styles. */
+.glass {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  box-shadow: 0 8px 32px rgba(71, 85, 105, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.glass-strong {
+  background-color: rgba(255, 255, 255, 0.84) !important;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+}
+
+.glass-sidebar {
+  background-color: rgba(255, 255, 255, 0.78) !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+.text-white { color: rgb(15 23 42) !important; }
+[class*="text-white/90"] { color: rgb(30 41 59) !important; }
+[class*="text-white/80"] { color: rgb(30 41 59 / 0.94) !important; }
+[class*="text-white/70"] { color: rgb(51 65 85 / 0.94) !important; }
+[class*="text-white/60"] { color: rgb(51 65 85 / 0.9) !important; }
+[class*="text-white/50"] { color: rgb(71 85 105 / 0.92) !important; }
+[class*="text-white/40"] { color: rgb(71 85 105 / 0.82) !important; }
+[class*="text-white/35"] { color: rgb(71 85 105 / 0.78) !important; }
+[class*="text-white/30"] { color: rgb(71 85 105 / 0.72) !important; }
+
+[class*="bg-white/"] { background-color: rgba(148, 163, 184, 0.1) !important; }
+[class*="bg-black/5"] { background-color: rgba(148, 163, 184, 0.04) !important; }
+[class*="bg-black/10"] { background-color: rgba(148, 163, 184, 0.08) !important; }
+[class*="bg-black/20"] { background-color: rgba(148, 163, 184, 0.12) !important; }
+[class*="bg-black/40"] { background-color: rgba(15, 23, 42, 0.06) !important; }
+[class*="border-white/"] { border-color: rgba(148, 163, 184, 0.24) !important; }
+
+.input-field {
+  color: rgb(15 23 42) !important;
+  background-color: rgba(255, 255, 255, 0.82) !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+}
+
+.input-field::placeholder { color: rgb(71 85 105 / 0.75) !important; }
+.nav-item-inactive { color: rgb(51 65 85 / 0.94) !important; }
+.nav-item-inactive:hover { color: rgb(15 23 42) !important; }
+.btn-secondary { color: rgb(30 41 59 / 0.9) !important; }
+.btn-ghost { color: rgb(71 85 105 / 0.82) !important; }
+.btn-ghost:hover { color: rgb(15 23 42) !important; }
