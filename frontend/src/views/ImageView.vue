@@ -110,10 +110,6 @@ function selectMode(modeId) {
 async function handleFileSelect(e) {
   const files = Array.from(e.target.files)
   if (!files.length) return
-  if (!(await requireQiniuConfig())) {
-    e.target.value = ''
-    return
-  }
   if (form.value.mode === 'img2img') {
     if (inputImages.value[0]) revokePreview(inputImages.value[0])
     inputImages.value = [{ file: files[0], preview: URL.createObjectURL(files[0]) }]
@@ -145,7 +141,7 @@ async function generate() {
   }
   if (!(await requireApiKey())) return
   generating.value = true
-  generateStep.value = form.value.mode === 'text2img' ? 'generating' : 'uploading'
+  generateStep.value = 'generating'
   error.value = ''
 
   const previewUrls = inputImages.value.map(item => item.preview)
@@ -166,27 +162,11 @@ async function generate() {
 
   try {
     const payload = { ...form.value }
-    let task
-    if (form.value.mode === 'img2img') {
-      if (hasLocalFiles()) {
-        generateStep.value = 'uploading'
-        task = await imageApi.generate(payload, [inputImages.value[0].file])
-      } else {
-        generateStep.value = 'generating'
-        task = await imageApi.generate({ ...payload, images: imageUrlsFromInput() })
-      }
-    } else if (form.value.mode === 'multi_img') {
-      if (hasLocalFiles()) {
-        generateStep.value = 'uploading'
-        task = await imageApi.generate(payload, inputImages.value.map(item => item.file))
-      } else {
-        generateStep.value = 'generating'
-        task = await imageApi.generate({ ...payload, images: imageUrlsFromInput() })
-      }
-    } else {
-      generateStep.value = 'generating'
-      task = await imageApi.generate(payload)
+    generateStep.value = 'generating'
+    if (form.value.mode !== 'text2img') {
+      payload.images = await inputImagesAsBase64()
     }
+    const task = await imageApi.generate(payload)
 
     const idx = history.value.findIndex(t => t.id === tempId)
     if (idx !== -1) {
@@ -324,12 +304,19 @@ function selectTask(task) {
   selectedTaskId.value = task.id
 }
 
-function imageUrlsFromInput() {
-  return inputImages.value.map(item => item.preview).filter(Boolean)
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error(`读取图片失败：${file.name || '未知文件'}`))
+    reader.readAsDataURL(file)
+  })
 }
 
-function hasLocalFiles() {
-  return inputImages.value.length > 0 && inputImages.value.every(item => item.file)
+async function inputImagesAsBase64() {
+  return Promise.all(inputImages.value.map(item =>
+    item.file ? fileToDataUrl(item.file) : item.preview
+  ))
 }
 
 function fillFormFromTask(task) {
