@@ -4,7 +4,7 @@
 </p>
 <h1 align="center">Agnes AI Creator</h1>
 <p align="center"><strong>A self-hosted multimodal web client powered by free Agnes AI models</strong></p>
-<p align="center">AI chat · Text-to-image / image edit · Text-to-video / image-to-video · Qiniu Cloud storage (optional)</p>
+<p align="center">AI chat · Text-to-image / image edit · Text-to-video / image-to-video · Local media storage</p>
 <div align="center">
   <a href="./LICENSE" target="_blank">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square"></a>
@@ -51,7 +51,7 @@
     <td width="50%" align="center" valign="top">
       <img src="docs/images/ai-video-gen.png" alt="Video generation" width="100%" style="display:block;margin-bottom:6px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);"/>
       <strong>🎬 Video generation</strong><br/>
-      <span style="font-size:13px">Text/image-to-video · Keyframe animation · Player · Qiniu upload</span>
+      <span style="font-size:13px">Text/image-to-video · Keyframe animation · Player · Local media storage</span>
     </td>
   </tr>
   <tr>
@@ -75,7 +75,7 @@
 | **Chat** | Create / switch conversations, streaming responses, Thinking mode, token & latency stats |
 | **Image generation** | Text-to-image, single-image edit, multi-image composition; supports `agnes-image-2.0-flash` / `agnes-image-2.1-flash` |
 | **Video generation** | Text-to-video, image-to-video, multi-image video, keyframe animation; async background polling |
-| **Media storage** | Images / videos auto-uploaded to Qiniu Cloud with persistent history |
+| **Media storage** | Generated images and videos are saved locally with persistent history |
 | **Web settings** | Configure API Base URL and manage multiple API Keys in the UI — no code edits or restarts |
 
 ### Supported models
@@ -91,7 +91,7 @@
 - **Frontend**: Vue 3 · Vite · Vue Router · Tailwind CSS
 - **Backend**: Python 3 · FastAPI · httpx · APScheduler
 - **Database**: SQLite (zero-config, auto-init on first startup)
-- **Object storage**: Qiniu Cloud (optional)
+- **Media storage**: local `backend/media/` directory
 - **AI API**: [Agnes AI OpenAI-compatible API](https://agnes-ai.com/doc/overview)
 
 ## Requirements
@@ -99,7 +99,6 @@
 - Python 3.10+
 - Node.js 18+
 - [Agnes AI API Key](https://platform.agnes-ai.com/) (free to apply; configure in the web **Settings** page)
-- Qiniu Cloud object storage (optional, for persisting generated media)
 
 ## Quick start
 
@@ -112,7 +111,7 @@ cd agnes-ai-creator
 
 ### 2. Configure backend environment variables (optional)
 
-Qiniu Cloud and database paths are configured via `backend/.env`. **Agnes AI API Keys and Base URL are managed in the web Settings UI** — no need to put them in `.env`.
+Database paths are configured via `backend/.env`. **Agnes AI API Keys and Base URL are managed in the web Settings UI** — no need to put them in `.env`.
 
 ```bash
 cp backend/.env.example backend/.env
@@ -122,14 +121,7 @@ Edit `backend/.env`:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `QINIU_ACCESS_KEY` | No | Qiniu Cloud Access Key |
-| `QINIU_SECRET_KEY` | No | Qiniu Cloud Secret Key |
-| `QINIU_BUCKET` | No | Bucket name |
-| `QINIU_DOMAIN` | No | CDN domain, e.g. `https://xxx.example.com` |
-| `QINIU_REGION` | No | Storage region, default East China `z0` |
 | `DATABASE_PATH` | No | SQLite path, default `./database/aimodel.db` |
-
-> Without Qiniu Cloud, AI generation still works; media may not be persisted to object storage.
 
 ### 3. Start the backend
 
@@ -214,14 +206,12 @@ Main tables:
 | `api_keys` | Agnes AI API Key configuration |
 | `app_settings` | App-level settings (e.g. Base URL) |
 
-## Qiniu Cloud storage paths
+## Local media paths
 
 | Type | Path |
 |------|------|
-| Images | `data/img/` |
-| Videos | `data/video/` |
-| Documents | `data/document/` |
-| Other | `data/other/` |
+| Images | `backend/media/images/` |
+| Videos | `backend/media/videos/` |
 
 ## Project structure
 
@@ -234,7 +224,7 @@ agnes-ai-creator/
 │   │   ├── database.py          # SQLite connection & init
 │   │   ├── schemas.py           # Request / response models
 │   │   ├── routers/             # chat / images / videos / settings
-│   │   └── services/            # Agnes API, key management, Qiniu, video polling
+│   │   └── services/            # Agnes API, key management, local storage, video polling
 │   ├── sql/schema.sql           # Database schema SQL
 │   ├── database/                # SQLite DB files (gitignored)
 │   ├── .env.example             # Environment variable template

@@ -3,27 +3,23 @@ import threading
 from app.database import get_db
 from app.services.agnes_client import agnes_client
 from app.services.error_utils import format_agnes_error, is_transient_http_error
-from app.services.qiniu_service import upload_from_url
+from app.services.local_storage import save_video_from_url
 
 
-def _upload_qiniu_background(task_id: int, video_url: str):
-    """Upload completed video to Qiniu without blocking the poller."""
+def _save_video_background(task_id: int, video_url: str):
+    """Save completed video locally without blocking the poller."""
     try:
-        uploaded = upload_from_url(video_url, "video")
+        saved = save_video_from_url(video_url)
         with get_db() as conn:
             conn.execute(
-                "UPDATE video_tasks SET qiniu_url = ? WHERE id = ?",
-                (uploaded["url"], task_id),
+                "UPDATE video_tasks SET output_url = ? WHERE id = ?",
+                (saved["url"], task_id),
             )
-    except Exception as e:
-        with get_db() as conn:
-            conn.execute(
-                "UPDATE video_tasks SET error_message = ? WHERE id = ? AND qiniu_url IS NULL",
-                (f"七牛上传失败: {e}", task_id),
-            )
+    except Exception:
+        pass
 
 
-async def refresh_task_from_agnes(task_id: int, video_id: str, model: str, *, current_qiniu_url=None) -> bool:
+async def refresh_task_from_agnes(task_id: int, video_id: str, model: str, *, current_output_url=None) -> bool:
     """Pull latest status from Agnes and persist it. Returns True if updated."""
     result = await agnes_client.get_video_status(video_id, model)
     status = result.get("status", "queued")
@@ -40,9 +36,9 @@ async def refresh_task_from_agnes(task_id: int, video_id: str, model: str, *, cu
         video_url = result.get("remixed_from_video_id")
         update_fields["output_url"] = video_url
         update_fields["error_message"] = None
-        if video_url and not current_qiniu_url:
+        if video_url and (not current_output_url or current_output_url == video_url):
             threading.Thread(
-                target=_upload_qiniu_background,
+                target=_save_video_background,
                 args=(task_id, video_url),
                 daemon=True,
             ).start()
@@ -67,7 +63,7 @@ async def _poll_one(row):
         row["id"],
         row["video_id"],
         row["model"],
-        current_qiniu_url=row["qiniu_url"] if "qiniu_url" in row.keys() else None,
+        current_output_url=row["output_url"] if "output_url" in row.keys() else None,
     )
 
 
@@ -75,7 +71,7 @@ async def poll_pending_videos():
     """Poll in-progress video tasks and update status."""
     with get_db() as conn:
         rows = conn.execute(
-            """SELECT id, video_id, model, qiniu_url FROM video_tasks
+            """SELECT id, video_id, model, output_url FROM video_tasks
                WHERE status IN ('queued', 'in_progress') AND video_id IS NOT NULL
                ORDER BY created_at ASC"""
         ).fetchall()

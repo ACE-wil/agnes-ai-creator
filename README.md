@@ -4,7 +4,7 @@
 </p>
 <h1 align="center">Agnes AI Creator</h1>
 <p align="center"><strong>基于 Agnes AI 免费大模型的自托管多模态 Web 客户端</strong></p>
-<p align="center">AI 对话 · 文生图 / 图生图 · 文生视频 / 图生视频 · 七牛云持久化（可选）</p>
+<p align="center">AI 对话 · 文生图 / 图生图 · 文生视频 / 图生视频 · 本地媒体存储</p>
 <div align="center">
   <a href="./LICENSE" target="_blank">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square"></a>
@@ -51,7 +51,7 @@
     <td width="50%" align="center" valign="top">
       <img src="docs/images/ai-video-gen.png" alt="视频生成界面" width="100%" style="display:block;margin-bottom:6px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.15);"/>
       <strong>🎬 视频生成</strong><br/>
-      <span style="font-size:13px">文/图生视频 · 关键帧动画 · 内置播放器 · 七牛云转存</span>
+      <span style="font-size:13px">文/图生视频 · 关键帧动画 · 内置播放器 · 本地媒体存储</span>
     </td>
   </tr>
   <tr>
@@ -75,7 +75,7 @@
 | **文本对话** | 新建 / 切换对话、流式输出、Thinking 模式、Token 与耗时统计 |
 | **图片生成** | 文生图、单图编辑、多图合成；多模型支持 |
 | **视频生成** | 文生视频、图生视频、多图视频、关键帧动画；后台异步轮询任务状态 |
-| **媒体存储** | 图片 / 视频生成结果自动转存七牛云，持久化历史记录 |
+| **媒体存储** | 图片 / 视频生成结果保存到本地，持久化历史记录 |
 | **网页设置** | 可视化配置 API Base URL、多 Key 管理与切换，无需改代码或重启 |
 
 ### 支持的模型
@@ -91,7 +91,7 @@
 - **前端**: Vue 3 · Vite · Vue Router · Tailwind CSS
 - **后端**: Python 3 · FastAPI · httpx · APScheduler
 - **数据库**: SQLite（零配置，首次启动自动建表，SQL 文件在 backend/sql 文件夹里）
-- **对象存储**: 七牛云（可选）
+- **媒体存储**: 本地 `backend/media/` 目录
 - **AI 接口**: [Agnes AI OpenAI 兼容 API](https://agnes-ai.com/doc/overview)
 
 ## 环境要求
@@ -99,7 +99,6 @@
 - Python 3.10+
 - Node.js 18+
 - [Agnes AI API Key](https://platform.agnes-ai.com/)（免费申请，在网页 **设置** 中配置）
-- 七牛云对象存储（可选，用于持久化保存生成结果）
 
 ## 快速开始
 
@@ -112,7 +111,7 @@ cd agnes-ai-creator
 
 ### 2. 配置后端环境变量（可选）
 
-七牛云与数据库路径通过 `backend/.env` 配置；**Agnes AI 的 API Key 与 Base URL 在网页设置中管理**，无需写入 `.env`。
+数据库路径通过 `backend/.env` 配置；**Agnes AI 的 API Key 与 Base URL 在网页设置中管理**，无需写入 `.env`。
 
 ```bash
 cp backend/.env.example backend/.env
@@ -122,14 +121,7 @@ cp backend/.env.example backend/.env
 
 | 变量 | 必填 | 说明 |
 |------|------|------|
-| `QINIU_ACCESS_KEY` | 否 | 七牛云 Access Key |
-| `QINIU_SECRET_KEY` | 否 | 七牛云 Secret Key |
-| `QINIU_BUCKET` | 否 | 存储桶名称 |
-| `QINIU_DOMAIN` | 否 | CDN 访问域名，如 `https://xxx.example.com` |
-| `QINIU_REGION` | 否 | 存储区域，默认华东 `z0` |
 | `DATABASE_PATH` | 否 | SQLite 路径，默认 `./database/aimodel.db` |
-
-> 未配置七牛云时，AI 生成功能仍可用，但媒体可能不会持久化到对象存储。
 
 ### 3. 启动后端
 
@@ -214,14 +206,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 | `api_keys` | Agnes AI API Key 配置 |
 | `app_settings` | 应用级配置（如 Base URL） |
 
-## 七牛云存储路径
+## 本地媒体路径
 
 | 类型 | 路径 |
 |------|------|
-| 图片 | `data/img/` |
-| 视频 | `data/video/` |
-| 文档 | `data/document/` |
-| 其他 | `data/other/` |
+| 图片 | `backend/media/images/` |
+| 视频 | `backend/media/videos/` |
 
 ## 项目结构
 
@@ -234,7 +224,7 @@ agnes-ai-creator/
 │   │   ├── database.py          # SQLite 连接与初始化
 │   │   ├── schemas.py           # 请求 / 响应模型
 │   │   ├── routers/             # chat / images / videos / settings
-│   │   └── services/            # Agnes API、Key 管理、七牛云、视频轮询
+│   │   └── services/            # Agnes API、Key 管理、本地存储、视频轮询
 │   ├── sql/schema.sql           # 数据库建表 SQL
 │   ├── database/                # SQLite 数据库文件（gitignore）
 │   ├── .env.example             # 环境变量示例

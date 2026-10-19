@@ -2,14 +2,14 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { videoApi } from '../api'
 import { useDialog } from '../composables/useDialog'
-import { useApiKeyGuard, videoModeNeedsQiniu } from '../composables/useApiKeyGuard'
+import { useApiKeyGuard } from '../composables/useApiKeyGuard'
 import { usePaginatedTaskHistory } from '../composables/usePaginatedTaskHistory'
 import { formatErrorMessage } from '../utils/errorMessage'
 import { canRefreshTaskStatus } from '../utils/transientError'
 import TrashIcon from '../components/TrashIcon.vue'
 
 const { alert, confirm } = useDialog()
-const { hasActiveKey, hasQiniuConfig, keyStatusLoading, refreshKeyStatus, requireApiKey, requireQiniuConfig } = useApiKeyGuard()
+const { hasActiveKey, keyStatusLoading, refreshKeyStatus, requireApiKey } = useApiKeyGuard()
 
 const meta = ref({ modes: [], frame_presets: [], resolution_presets: [] })
 const form = ref({
@@ -24,6 +24,9 @@ const form = ref({
   seed: null,
 })
 const inputImages = ref([])
+const promptInput = ref(null)
+const fileInput = ref(null)
+const showMentionMenu = ref(false)
 const uploading = ref(false)
 const submitting = ref(false)
 const retrying = ref(false)
@@ -42,8 +45,6 @@ const historyScrollRef = ref(null)
 const historySentinelRef = ref(null)
 let historyObserver = null
 let pollTimer = null
-
-const currentModeNeedsQiniu = computed(() => videoModeNeedsQiniu(form.value.mode))
 
 const selectedTask = computed(() =>
   history.value.find(t => t.id === selectedTaskId.value) || null
@@ -102,27 +103,74 @@ function setupHistoryObserver() {
 async function handleUpload(e) {
   const files = Array.from(e.target.files)
   if (!files.length) return
-  if (!(await requireQiniuConfig())) {
-    e.target.value = ''
-    return
-  }
+  await addImageFiles(files)
+  e.target.value = ''
+}
+
+async function addImageFiles(files) {
+  const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+  if (!imageFiles.length) return
   uploading.value = true
   try {
-    for (const file of files) {
-      const res = await videoApi.upload(file)
-      inputImages.value.push(res.url)
+    if (form.value.mode === 'text2video') form.value.mode = 'img2video'
+    for (const file of imageFiles) {
+      inputImages.value.push(await fileToDataUrl(file))
     }
   } catch (err) {
     error.value = err.message
     await alert({ title: '上传失败', message: err.message, confirmVariant: 'danger' })
   } finally {
     uploading.value = false
-    e.target.value = ''
   }
+}
+
+function handlePromptDrop(e) {
+  const files = Array.from(e.dataTransfer?.files || [])
+  addImageFiles(files)
+}
+
+function handlePromptPaste(e) {
+  const files = Array.from(e.clipboardData?.files || [])
+  if (!files.length) return
+  e.preventDefault()
+  addImageFiles(files)
+}
+
+function handlePromptInput() {
+  const el = promptInput.value
+  const position = el?.selectionStart ?? form.value.prompt.length
+  showMentionMenu.value = /(?:^|\s)@[^\s@]*$/.test(form.value.prompt.slice(0, position)) && inputImages.value.length > 0
+}
+
+function insertImageMention(index) {
+  const el = promptInput.value
+  const position = el?.selectionStart ?? form.value.prompt.length
+  const before = form.value.prompt.slice(0, position)
+  const match = before.match(/(?:^|\s)@[^\s@]*$/)
+  if (!match) return
+  const tokenStart = match.index + (match[0].startsWith(' ') ? 1 : 0)
+  const mention = `@图片${index + 1} `
+  form.value.prompt = `${before.slice(0, tokenStart)}${mention}${form.value.prompt.slice(position)}`
+  showMentionMenu.value = false
+  nextTick(() => {
+    const nextPosition = tokenStart + mention.length
+    el?.focus()
+    el?.setSelectionRange(nextPosition, nextPosition)
+  })
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(new Error(`读取图片失败：${file.name || '未知文件'}`))
+    reader.readAsDataURL(file)
+  })
 }
 
 function removeImage(i) {
   inputImages.value.splice(i, 1)
+  showMentionMenu.value = false
 }
 
 function selectMode(modeId) {
@@ -186,8 +234,6 @@ async function generate() {
     return
   }
   if (!(await requireApiKey())) return
-  if (currentModeNeedsQiniu.value && !(await requireQiniuConfig())) return
-
   error.value = ''
   submitting.value = true
 
@@ -256,7 +302,7 @@ async function generate() {
 }
 
 function displayUrl(task) {
-  return task?.qiniu_url || task?.output_url
+  return task?.output_url
 }
 
 function inputImagesOf(task) {
@@ -384,7 +430,6 @@ async function retryTask(task) {
       task_id: null,
       video_id: null,
       output_url: null,
-      qiniu_url: null,
       seconds: null,
       size: null,
       completed_at: null,
@@ -482,9 +527,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="flex h-full">
+  <div class="flex h-full flex-col overflow-y-auto">
     <!-- Task list sidebar -->
-    <div class="w-96 border-r border-white/10 flex flex-col bg-black/10">
+    <div class="order-2 w-full flex-shrink-0 border-t border-white/10 bg-black/10">
       <div class="p-4 border-b border-white/10">
         <div class="flex items-center justify-between mb-1">
           <h3 class="font-bold text-white">任务列表</h3>
@@ -493,7 +538,7 @@ onUnmounted(() => {
         <p class="text-xs text-white/40">提交后立即显示进度</p>
       </div>
 
-      <div ref="historyScrollRef" class="flex-1 overflow-y-auto p-3 space-y-2">
+      <div ref="historyScrollRef" class="max-h-[360px] overflow-y-auto p-3 space-y-2">
         <div
           v-for="task in history"
           :key="task.id"
@@ -592,9 +637,9 @@ onUnmounted(() => {
     </div>
 
     <!-- Main area: form + preview -->
-    <div class="flex-1 flex flex-col overflow-hidden">
-      <div class="flex-1 overflow-y-auto p-6">
-        <div class="max-w-5xl mx-auto space-y-6">
+    <div class="order-1 w-full flex-shrink-0">
+      <div class="p-6">
+        <div class="max-w-6xl mx-auto space-y-6">
           <div>
             <h2 class="text-2xl font-extrabold text-slate-800">
               视频生成
@@ -613,17 +658,7 @@ onUnmounted(() => {
             </p>
           </div>
 
-          <div
-            v-if="!keyStatusLoading && !hasQiniuConfig"
-            class="glass-card border border-sky-400/25 bg-sky-400/10 py-3 px-4"
-          >
-            <p class="text-sm text-sky-900">
-              未配置七牛云对象存储：当前可使用<strong class="font-semibold text-slate-900">文生视频</strong>；图生视频、多图视频、关键帧动画需上传参考图，暂不可用。生成结果使用 Agnes 临时链接，可能无法长期访问。
-              <router-link to="/settings#storage" class="text-cyan-700 hover:underline ml-1">查看配置说明</router-link>
-            </p>
-          </div>
-
-          <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <div class="flex flex-col gap-6">
             <!-- Form -->
             <div ref="formCardRef" class="glass-card space-y-4">
               <div>
@@ -639,42 +674,77 @@ onUnmounted(() => {
                       : 'border-white/10 text-white/50 hover:border-white/25 hover:bg-white/5'"
                   >{{ m.name }}</button>
                 </div>
-                <p
-                  v-if="!keyStatusLoading && !hasQiniuConfig && currentModeNeedsQiniu"
-                  class="text-xs text-amber-200/90 mt-2 glass px-3 py-2 rounded-xl border border-amber-400/25"
-                >
-                  此模式需上传参考图，请先配置七牛云对象存储。
-                  <router-link to="/settings#storage" class="text-cyan-300 hover:underline">查看说明</router-link>
-                </p>
               </div>
 
               <div>
                 <label class="text-sm text-white/60 mb-2 block font-medium">提示词</label>
-                <textarea v-model="form.prompt" rows="3" class="input-field text-sm" placeholder="描述视频内容、动作、镜头运动..."></textarea>
+                <div
+                  class="relative rounded-3xl border border-white/30 bg-slate-950/90 p-3 shadow-inner shadow-black/30 transition-colors focus-within:border-cyan-300/75 focus-within:shadow-cyan-400/10"
+                  @dragover.prevent
+                  @drop.prevent="handlePromptDrop"
+                >
+                  <div v-if="inputImages.length" class="flex flex-wrap gap-2 mb-3">
+                    <div
+                      v-for="(url, i) in inputImages"
+                      :key="`${url.slice(0, 24)}-${i}`"
+                      class="relative group"
+                    >
+                      <img :src="url" :alt="`参考图 ${i + 1}`" class="w-14 h-14 object-cover rounded-xl border border-white/20" />
+                      <span class="absolute left-1 bottom-1 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] text-white/90">图片{{ i + 1 }}</span>
+                      <button
+                        type="button"
+                        @click="removeImage(i)"
+                        class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 rounded-full text-xs opacity-0 group-hover:opacity-100 shadow-lg"
+                      >✕</button>
+                    </div>
+                  </div>
+                  <textarea
+                    ref="promptInput"
+                    v-model="form.prompt"
+                    rows="4"
+                    class="w-full resize-none bg-transparent text-sm leading-6 text-white placeholder:text-white/60 outline-none"
+                    placeholder="上传参考素材、输入文字，自由组合图、文、视频多元素，定义精彩互动。例如：@图片1 转为视频的动作"
+                    @input="handlePromptInput"
+                    @paste="handlePromptPaste"
+                    @keydown.esc="showMentionMenu = false"
+                  ></textarea>
+                  <div
+                    v-if="showMentionMenu && inputImages.length"
+                    class="absolute left-3 bottom-16 z-20 min-w-40 rounded-2xl border border-white/25 bg-slate-950 p-2 shadow-2xl backdrop-blur"
+                  >
+                    <p class="px-2 py-1 text-[11px] text-white/65">插入参考图</p>
+                    <button
+                      v-for="(url, i) in inputImages"
+                      :key="`mention-${i}`"
+                      type="button"
+                      class="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs text-white/90 hover:bg-white/15"
+                      @mousedown.prevent
+                      @click="insertImageMention(i)"
+                    >
+                      <img :src="url" class="h-7 w-7 rounded-lg object-cover" />
+                      <span>@图片{{ i + 1 }}</span>
+                    </button>
+                  </div>
+                  <div class="mt-2 flex items-center justify-between gap-3 border-t border-white/20 pt-2">
+                    <div class="flex items-center gap-2 text-xs text-white/65">
+                      <button
+                        type="button"
+                        class="flex h-8 w-8 items-center justify-center rounded-full border border-white/35 text-lg text-white transition hover:border-cyan-300/75 hover:bg-cyan-300/10 hover:text-cyan-100"
+                        title="添加参考图"
+                        @click="fileInput?.click()"
+                      >+</button>
+                      <span>{{ uploading ? '正在读取图片...' : '拖动或粘贴图片即可添加' }}</span>
+                      <span v-if="inputImages.length">· {{ inputImages.length }} 张参考图</span>
+                    </div>
+                    <span class="text-[11px] text-white/55">输入 @ 可引用图片</span>
+                  </div>
+                  <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="handleUpload" />
+                </div>
               </div>
 
               <div>
                 <label class="text-sm text-white/60 mb-2 block font-medium">负向提示词（可选）</label>
                 <input v-model="form.negative_prompt" class="input-field text-sm" placeholder="描述需要避免的内容" />
-              </div>
-
-              <div v-if="form.mode !== 'text2video'">
-                <label class="text-sm text-white/60 mb-2 block font-medium">
-                  {{ form.mode === 'img2video' ? '输入图片' : '参考图片' }}
-                </label>
-                <div class="flex flex-wrap gap-2 mb-2">
-                  <div v-for="(url, i) in inputImages" :key="i" class="relative group">
-                    <img :src="url" class="w-20 h-20 object-cover rounded-2xl border border-white/20" />
-                    <button @click="removeImage(i)" class="absolute -top-1 -right-1 w-6 h-6 bg-rose-500 rounded-full text-xs opacity-0 group-hover:opacity-100 shadow-lg">✕</button>
-                  </div>
-                </div>
-                <label
-                  class="btn-secondary inline-flex items-center gap-2 text-sm"
-                  :class="!hasQiniuConfig ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'"
-                >
-                  <input type="file" accept="image/*" multiple class="hidden" @change="handleUpload" />
-                  {{ uploading ? '上传中...' : '+ 上传图片' }}
-                </label>
               </div>
 
               <div>
@@ -699,8 +769,8 @@ onUnmounted(() => {
                     @click="applyPreset(p)"
                     class="px-4 py-1.5 rounded-full text-xs border transition-all duration-200"
                     :class="form.num_frames === p.num_frames
-                      ? 'border-fuchsia-400/50 text-fuchsia-200 bg-fuchsia-500/20'
-                      : 'border-white/15 text-white/50 hover:border-white/30'"
+                      ? 'border-fuchsia-300 bg-fuchsia-600/80 text-white shadow-[0_0_16px_rgba(217,70,239,0.3)]'
+                      : 'border-white/20 text-white/70 hover:border-white/40 hover:text-white'"
                   >{{ p.label }}</button>
                 </div>
               </div>
@@ -769,7 +839,6 @@ onUnmounted(() => {
                   <div class="mt-3 text-xs text-white/50 flex flex-wrap gap-4">
                     <span v-if="selectedTask.seconds">时长: {{ selectedTask.seconds }}s</span>
                     <span v-if="selectedTask.size">分辨率: {{ selectedTask.size }}</span>
-                    <span v-if="selectedTask.qiniu_url" class="text-emerald-300">✓ 已存储至七牛云</span>
                   </div>
                   <div v-if="inputImagesOf(selectedTask).length" class="mt-4">
                     <p class="text-xs text-white/50 mb-2 font-medium">参考图</p>

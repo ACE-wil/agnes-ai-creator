@@ -19,12 +19,6 @@ async def _upload_input_file(file: UploadFile) -> dict:
         ext = "png"
     uploaded = save_image(content, ext)
     uploaded["data_url"] = image_data_url(content, ext)
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO uploads (filename, original_name, qiniu_key, qiniu_url, file_type, size_bytes)
-               VALUES (?, ?, ?, ?, 'img', ?)""",
-            (uploaded["key"], file.filename, uploaded["key"], uploaded["url"], uploaded["size"]),
-        )
     return uploaded
 
 
@@ -53,9 +47,9 @@ async def _complete_image_task(task_id: int, result: dict) -> dict:
 
     with get_db() as conn:
         conn.execute(
-            """UPDATE image_tasks SET status='completed', output_url=?, qiniu_url=?, revised_prompt=?,
+            """UPDATE image_tasks SET status='completed', output_url=?, revised_prompt=?,
                duration_ms=?, error_message=NULL, completed_at=datetime('now','localtime') WHERE id=?""",
-            (output_url, local_url, revised, result.get("duration_ms", 0), task_id),
+            (output_url, revised, result.get("duration_ms", 0), task_id),
         )
         row = conn.execute("SELECT * FROM image_tasks WHERE id = ?", (task_id,)).fetchone()
     return row_to_dict(row)
@@ -220,6 +214,6 @@ async def sync_image_task(task_id: int):
 
 @router.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
-    """遗留接口，图片生成请使用 /generate multipart 提交，避免选图时提前上传 OSS。"""
+    """兼容旧客户端的本地上传接口。图片生成推荐直接提交 Base64。"""
     uploaded = await _upload_input_file(file)
     return {"url": uploaded["url"], "key": uploaded["key"]}

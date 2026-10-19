@@ -4,7 +4,7 @@ from app.database import get_db, row_to_dict
 from app.schemas import VideoGenerateRequest
 from app.services.agnes_client import agnes_client
 from app.services.error_utils import format_agnes_error, is_transient_http_error
-from app.services.qiniu_service import upload_bytes
+from app.services.local_storage import image_data_url
 from app.services.video_poller import refresh_task_from_agnes
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
@@ -96,7 +96,7 @@ async def get_task(task_id: int):
                 task_id,
                 row["video_id"],
                 row["model"],
-                current_qiniu_url=row["qiniu_url"],
+                current_output_url=row["output_url"],
             )
             with get_db() as conn:
                 row = conn.execute("SELECT * FROM video_tasks WHERE id = ?", (task_id,)).fetchone()
@@ -187,7 +187,7 @@ async def sync_video_task(task_id: int):
             task_id,
             row["video_id"],
             row["model"],
-            current_qiniu_url=row["qiniu_url"],
+            current_output_url=row["output_url"],
         )
     except Exception as e:
         if is_transient_http_error(e):
@@ -217,7 +217,7 @@ async def retry_task(task_id: int, background_tasks: BackgroundTasks):
                 task_id,
                 row["video_id"],
                 row["model"],
-                current_qiniu_url=row["qiniu_url"],
+                current_output_url=row["output_url"],
             )
             with get_db() as conn:
                 row = conn.execute("SELECT * FROM video_tasks WHERE id = ?", (task_id,)).fetchone()
@@ -237,7 +237,7 @@ async def retry_task(task_id: int, background_tasks: BackgroundTasks):
     with get_db() as conn:
         conn.execute(
             """UPDATE video_tasks SET status='submitting', progress=0, error_message=NULL,
-               task_id=NULL, video_id=NULL, output_url=NULL, qiniu_url=NULL,
+               task_id=NULL, video_id=NULL, output_url=NULL,
                seconds=NULL, size=NULL, completed_at=NULL WHERE id=?""",
             (task_id,),
         )
@@ -249,15 +249,9 @@ async def retry_task(task_id: int, background_tasks: BackgroundTasks):
 
 @router.post("/upload")
 async def upload_image(file: UploadFile = File(...)):
+    """兼容旧客户端的本地 Base64 接口。新客户端直接在浏览器中编码图片。"""
     content = await file.read()
     ext = (file.filename or "image.png").rsplit(".", 1)[-1].lower()
     if ext not in ("png", "jpg", "jpeg", "webp"):
         ext = "png"
-    uploaded = upload_bytes(content, "img", ext)
-    with get_db() as conn:
-        conn.execute(
-            """INSERT INTO uploads (filename, original_name, qiniu_key, qiniu_url, file_type, size_bytes)
-               VALUES (?, ?, ?, ?, 'img', ?)""",
-            (uploaded["key"], file.filename, uploaded["key"], uploaded["url"], uploaded["size"]),
-        )
-    return {"url": uploaded["url"], "key": uploaded["key"]}
+    return {"url": image_data_url(content, ext), "key": None}

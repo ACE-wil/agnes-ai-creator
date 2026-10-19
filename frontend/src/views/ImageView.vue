@@ -9,7 +9,7 @@ import { canRefreshTaskStatus } from '../utils/transientError'
 import TrashIcon from '../components/TrashIcon.vue'
 
 const { confirm, alert } = useDialog()
-const { hasActiveKey, hasQiniuConfig, keyStatusLoading, refreshKeyStatus, requireApiKey } = useApiKeyGuard()
+const { hasActiveKey, keyStatusLoading, refreshKeyStatus, requireApiKey } = useApiKeyGuard()
 
 const modes = [
   { id: 'text2img', name: '文生图' },
@@ -213,7 +213,7 @@ async function deleteTask(task, e) {
 }
 
 function displayUrl(task) {
-  return task?.qiniu_url || task?.output_url
+  return task?.output_url
 }
 
 function inputImagesOf(task) {
@@ -477,16 +477,6 @@ onUnmounted(() => {
             </p>
           </div>
 
-          <div
-            v-if="!keyStatusLoading && !hasQiniuConfig"
-            class="glass-card border border-sky-400/25 bg-sky-400/10 py-3 px-4"
-          >
-            <p class="text-sm text-sky-900">
-              未配置七牛云对象存储：图片和参考图会自动保存到本地，并以 Base64 发送给 Agnes；七牛云仅用于可选的云端持久化。
-              <router-link to="/settings#storage" class="text-cyan-700 hover:underline ml-1">查看配置说明</router-link>
-            </p>
-          </div>
-
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <!-- Form -->
             <div ref="formCardRef" class="glass-card space-y-4">
@@ -620,7 +610,6 @@ onUnmounted(() => {
                   <div class="mt-3 text-xs text-white/50 flex flex-wrap gap-4">
                     <span>{{ formatSizeLabel(selectedTask.size) }}</span>
                     <span v-if="selectedTask.duration_ms">耗时: {{ selectedTask.duration_ms }}ms</span>
-                    <span v-if="selectedTask.qiniu_url" class="text-emerald-700">✓ 已保存到本地</span>
                   </div>
                   <p v-if="selectedTask.revised_prompt" class="mt-3 text-xs text-white/40 leading-relaxed">
                     优化提示词: {{ selectedTask.revised_prompt }}

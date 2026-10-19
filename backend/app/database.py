@@ -29,7 +29,6 @@ def _migrate_video_tasks_status():
                 seed INTEGER,
                 input_images TEXT,
                 output_url TEXT,
-                qiniu_url TEXT,
                 status TEXT NOT NULL DEFAULT 'queued'
                     CHECK(status IN ('submitting', 'queued', 'in_progress', 'completed', 'failed')),
                 progress INTEGER DEFAULT 0,
@@ -41,7 +40,18 @@ def _migrate_video_tasks_status():
                 created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
                 completed_at TEXT
             );
-            INSERT INTO video_tasks_new SELECT * FROM video_tasks;
+            INSERT INTO video_tasks_new (
+                id, model, mode, prompt, negative_prompt, task_id, video_id,
+                width, height, num_frames, frame_rate, num_inference_steps, seed,
+                input_images, output_url, status, progress, seconds, size,
+                duration_ms, error_message, request_params, created_at, completed_at
+            )
+            SELECT
+                id, model, mode, prompt, negative_prompt, task_id, video_id,
+                width, height, num_frames, frame_rate, num_inference_steps, seed,
+                input_images, output_url, status, progress, seconds, size,
+                duration_ms, error_message, request_params, created_at, completed_at
+            FROM video_tasks;
             DROP TABLE video_tasks;
             ALTER TABLE video_tasks_new RENAME TO video_tasks;
             CREATE INDEX IF NOT EXISTS idx_video_tasks_status ON video_tasks(status);
